@@ -21,6 +21,7 @@ import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
 import org.apache.nifi.components.PropertyDescriptor;
+import org.apache.nifi.components.state.Scope;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.flowfile.attributes.CoreAttributes;
 import org.apache.nifi.processor.*;
@@ -56,16 +57,16 @@ public class CreateBlockProcessor extends AbstractProcessor {
     public static final Relationship SUCCESS_REL = new Relationship.Builder()
             .name("block")
             .build();
-
+    public static final String LAST_EXECUTION = "lastExecution";
+    public static final String BLOCK_NUMBER = "blockNumber";
+    public static final String LAST_HASH = "lastHash";
 
 
     private List<PropertyDescriptor> descriptors;
 
     private Set<Relationship> relationships;
 
-    private long lastExecution = 0; // TODO : from state
-    private int blockNumber = 0; // TODO : from state
-    private String lastHash = "root"; // TODO : from state
+
 
 
     @Override
@@ -98,14 +99,18 @@ public class CreateBlockProcessor extends AbstractProcessor {
 
     @Override
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
-        if(!conditionsMet(context, session)) {
+
+        State state = loadState(context);
+        if(!conditionsMet(context, session, state.getLastExecution())) {
+            context.yield();
             return;
         }
 
         FlowFile incomingFlowFile = session.get();
         if ( incomingFlowFile == null ) {
             // no data, so just update the execution time
-            this.lastExecution = System.currentTimeMillis(); // TODO : set state
+            state.setLastExecution(System.currentTimeMillis());
+            this.saveState(context, state);
             return;
         }
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -114,7 +119,7 @@ public class CreateBlockProcessor extends AbstractProcessor {
             GZIPOutputStream gzos = new GZIPOutputStream(os);
             PrintWriter writer = new PrintWriter(new OutputStreamWriter(gzos))) {
             StringBuilder blockContents = new StringBuilder("Hash of previous block : ");
-            blockContents.append(this.lastHash).append("\n");
+            blockContents.append(state.getLastHash()).append("\n");
             blockContents.append("Block created at ").append(sdf.format(new Date())).append("\n");
             while (incomingFlowFile != null) {
 
@@ -134,23 +139,71 @@ public class CreateBlockProcessor extends AbstractProcessor {
             String content = blockContents.toString();
             writer.write(content);
             // hash of previous block is part of it... this constructs the chain
-            this.lastHash = DigestUtils.sha512Hex(content); // TODO : set state
-            writer.write(lastHash);
+            state.setLastHash(DigestUtils.sha512Hex(content));
+            writer.write(state.getLastHash());
             writer.write("\n");
             writer.flush();
             writer.close();
             gzos.close();
             os.close();
-            outgoingFlowFile = session.putAttribute(outgoingFlowFile, CoreAttributes.FILENAME.key(), "block_"+blockNumber);
+            state.setBlockNumber(state.getBlockNumber()+1);
+            outgoingFlowFile = session.putAttribute(outgoingFlowFile, CoreAttributes.FILENAME.key(), "block_"+state.getBlockNumber());
             outgoingFlowFile = session.putAttribute(outgoingFlowFile, CoreAttributes.MIME_TYPE.key(), "application/gzip");
-            // TODO : set state
-            blockNumber++;
+
             session.transfer(outgoingFlowFile, SUCCESS_REL);
-            this.lastExecution = System.currentTimeMillis(); // TODO : set state
+            state.setLastExecution(System.currentTimeMillis());
+            saveState(context, state);
         }catch(IOException ioe) {
             getLogger().error(ioe.getMessage(), ioe);
             session.rollback();
         }
+    }
+
+    private State loadState(ProcessContext context) {
+
+        State state = new State();
+        try {
+            Map<String, String> stateMap = context.getStateManager().getState(Scope.CLUSTER).toMap();
+            if(stateMap != null) {
+                if (stateMap.containsKey(LAST_EXECUTION)) {
+                    state.setLastExecution(Long.parseLong(stateMap.get(LAST_EXECUTION)));
+                }
+                if (stateMap.containsKey(BLOCK_NUMBER)) {
+                    state.setBlockNumber(Integer.valueOf(stateMap.get(BLOCK_NUMBER)));
+                }
+                if (stateMap.containsKey(LAST_HASH)) {
+                    state.setLastHash(stateMap.get(LAST_HASH));
+                }
+            }
+
+        } catch (IOException e) {
+            getLogger().error("Could not get state",e);
+            throw new ProcessException(e);
+        }
+        return state;
+    }
+
+    private void saveState(ProcessContext context,State state) {
+
+
+        try {
+            Map<String, String> stateMap = context.getStateManager().getState(Scope.CLUSTER).toMap();
+            if(stateMap == null) {
+                stateMap = new HashMap<>();
+            } else {
+                stateMap = new HashMap<>(stateMap);
+            }
+
+            stateMap.put(LAST_EXECUTION, ""+state.getLastExecution());
+            stateMap.put(LAST_HASH, state.getLastHash());
+            stateMap.put(BLOCK_NUMBER, ""+state.getBlockNumber());
+            context.getStateManager().setState(stateMap, Scope.CLUSTER);
+
+        } catch (IOException e) {
+            getLogger().error("Could not get state",e);
+            throw new ProcessException(e);
+        }
+
     }
 
     /**
@@ -158,10 +211,41 @@ public class CreateBlockProcessor extends AbstractProcessor {
      * execution was longer ago than the required interval (in which case we may create a partial block)
      * @param context
      * @param session
+     * @param lastExecution
      * @return
      */
-    private boolean conditionsMet(ProcessContext context, ProcessSession session) {
+    private boolean conditionsMet(ProcessContext context, ProcessSession session, long lastExecution) {
         return session.getQueueSize().getObjectCount() > context.getProperty(BLOCKSIZE).asInteger() ||
-                (System.currentTimeMillis() - this.lastExecution) > context.getProperty(INTERVAL).asInteger() * 1000 * 60;
+                (System.currentTimeMillis() - lastExecution) > context.getProperty(INTERVAL).asInteger() * 1000 * 60;
+    }
+}
+
+class State {
+    private long lastExecution = 0;
+    private int blockNumber = 0;
+    private String lastHash = "root";
+
+    public long getLastExecution() {
+        return lastExecution;
+    }
+
+    public void setLastExecution(long lastExecution) {
+        this.lastExecution = lastExecution;
+    }
+
+    public int getBlockNumber() {
+        return blockNumber;
+    }
+
+    public void setBlockNumber(int blockNumber) {
+        this.blockNumber = blockNumber;
+    }
+
+    public String getLastHash() {
+        return lastHash;
+    }
+
+    public void setLastHash(String lastHash) {
+        this.lastHash = lastHash;
     }
 }
