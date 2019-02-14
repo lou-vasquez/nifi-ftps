@@ -16,6 +16,7 @@
  */
 package kullervo16.audit;
 
+import kullervo16.audit.utils.CryptoUtils;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
@@ -32,6 +33,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.zip.GZIPOutputStream;
@@ -39,19 +44,31 @@ import java.util.zip.GZIPOutputStream;
 @Tags({"audit","blockchain","couchdb"})
 @CapabilityDescription("Converts couchDB event stream(s) into audit blocks. It takes both a size and a duration, whichever is reached first will trigger the creation of a block")
 public class CreateBlockProcessor extends AbstractProcessor {
-    public static final String INTERVAL = "interval between blocks in minutes (default = 15)";
+    public static final String INTERVAL = "interval";
     public static final PropertyDescriptor PROPERTY_INTERVAL = new PropertyDescriptor.Builder()
             .name(INTERVAL)
+            .description("interval between blocks in minutes (default = 15)")
             .defaultValue("15")
             .addValidator(StandardValidators.POSITIVE_INTEGER_VALIDATOR)
             .build();
-    public static final String BLOCKSIZE = "maximum number of elements per block (default = 1000)";
+    public static final String BLOCKSIZE = "blocksize";
     public static final PropertyDescriptor PROPERTY_BLOCKSIZE = new PropertyDescriptor.Builder()
             .name(BLOCKSIZE)
+            .description("maximum number of elements per block (default = 1000)")
             .required(false)
             .defaultValue("1000")
             .addValidator(StandardValidators.POSITIVE_INTEGER_VALIDATOR)
             .build();
+
+    public static final String PRIVATE_KEY = "private key";
+    public static final PropertyDescriptor PROPERTY_PRIVATE_KEY = new PropertyDescriptor.Builder()
+            .name(PRIVATE_KEY)
+            .description("base64 form of the private key to sign with")
+            .required(true)
+            .sensitive(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
 
 
     public static final Relationship SUCCESS_REL = new Relationship.Builder()
@@ -60,11 +77,14 @@ public class CreateBlockProcessor extends AbstractProcessor {
     public static final String LAST_EXECUTION = "lastExecution";
     public static final String BLOCK_NUMBER = "blockNumber";
     public static final String LAST_HASH = "lastHash";
+    private static final String SIGNATURE = "signature";
 
 
     private List<PropertyDescriptor> descriptors;
 
     private Set<Relationship> relationships;
+
+    private PrivateKey pk;
 
 
 
@@ -74,6 +94,7 @@ public class CreateBlockProcessor extends AbstractProcessor {
         final List<PropertyDescriptor> descriptors = new ArrayList<PropertyDescriptor>();
         descriptors.add(PROPERTY_BLOCKSIZE);
         descriptors.add(PROPERTY_INTERVAL);
+        descriptors.add(PROPERTY_PRIVATE_KEY);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
         final Set<Relationship> relationships = new HashSet<Relationship>();
@@ -95,6 +116,22 @@ public class CreateBlockProcessor extends AbstractProcessor {
     @OnScheduled
     public void onScheduled(final ProcessContext context) {
 
+    }
+
+    @Override
+    public void onPropertyModified(PropertyDescriptor descriptor, String oldValue, String newValue) {
+        super.onPropertyModified(descriptor, oldValue, newValue);
+        if(descriptor.getName().equals(PRIVATE_KEY)) {
+
+            try {
+                byte[] b1 = Base64.getDecoder().decode(newValue);
+                PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(b1);
+                KeyFactory kf = KeyFactory.getInstance("RSA");
+                this.pk = kf.generatePrivate(spec);
+            } catch (Exception e) {
+                getLogger().error("Invalid private key");
+            }
+        }
     }
 
     @Override
@@ -120,6 +157,8 @@ public class CreateBlockProcessor extends AbstractProcessor {
             PrintWriter writer = new PrintWriter(new OutputStreamWriter(gzos))) {
             StringBuilder blockContents = new StringBuilder("Hash of previous block : ");
             blockContents.append(state.getLastHash()).append("\n");
+            blockContents.append("Signature of previous block : ");
+            blockContents.append(state.getSignature()).append("\n");
             blockContents.append("Block created at ").append(sdf.format(new Date())).append("\n");
             while (incomingFlowFile != null) {
 
@@ -138,9 +177,15 @@ public class CreateBlockProcessor extends AbstractProcessor {
             }
             String content = blockContents.toString();
             writer.write(content);
+
             // hash of previous block is part of it... this constructs the chain
             state.setLastHash(DigestUtils.sha512Hex(content));
+            state.setSignature(CryptoUtils.signValue(this.pk, content));
+            writer.write("hash:");
             writer.write(state.getLastHash());
+            writer.write("\n");
+            writer.write("signature:");
+            writer.write(state.getSignature());
             writer.write("\n");
             writer.flush();
             writer.close();
@@ -153,7 +198,7 @@ public class CreateBlockProcessor extends AbstractProcessor {
             session.transfer(outgoingFlowFile, SUCCESS_REL);
             state.setLastExecution(System.currentTimeMillis());
             saveState(context, state);
-        }catch(IOException ioe) {
+        }catch(Exception ioe) {
             getLogger().error(ioe.getMessage(), ioe);
             session.rollback();
         }
@@ -174,6 +219,9 @@ public class CreateBlockProcessor extends AbstractProcessor {
                 if (stateMap.containsKey(LAST_HASH)) {
                     state.setLastHash(stateMap.get(LAST_HASH));
                 }
+                if(stateMap.containsKey(SIGNATURE)) {
+                    state.setSignature(stateMap.get(SIGNATURE));
+                }
             }
 
         } catch (IOException e) {
@@ -190,6 +238,7 @@ public class CreateBlockProcessor extends AbstractProcessor {
             Map<String, String> stateMap = context.getStateManager().getState(Scope.CLUSTER).toMap();
             if(stateMap == null) {
                 stateMap = new HashMap<>();
+                // TODO : use data in blocks to initialize the data (allows major nifi crash as well)
             } else {
                 stateMap = new HashMap<>(stateMap);
             }
@@ -197,6 +246,7 @@ public class CreateBlockProcessor extends AbstractProcessor {
             stateMap.put(LAST_EXECUTION, ""+state.getLastExecution());
             stateMap.put(LAST_HASH, state.getLastHash());
             stateMap.put(BLOCK_NUMBER, ""+state.getBlockNumber());
+            stateMap.put(SIGNATURE, state.getSignature());
             context.getStateManager().setState(stateMap, Scope.CLUSTER);
 
         } catch (IOException e) {
@@ -224,6 +274,7 @@ class State {
     private long lastExecution = 0;
     private int blockNumber = 0;
     private String lastHash = "root";
+    private String signature = "";
 
     public long getLastExecution() {
         return lastExecution;
@@ -247,5 +298,13 @@ class State {
 
     public void setLastHash(String lastHash) {
         this.lastHash = lastHash;
+    }
+
+    public String getSignature() {
+        return signature;
+    }
+
+    public void setSignature(String signature) {
+        this.signature = signature;
     }
 }
