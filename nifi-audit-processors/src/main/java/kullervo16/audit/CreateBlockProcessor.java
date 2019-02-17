@@ -18,6 +18,7 @@ package kullervo16.audit;
 
 import kullervo16.audit.utils.CryptoUtils;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.nifi.annotation.behavior.Stateful;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
@@ -35,13 +36,13 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.zip.GZIPOutputStream;
 
 @Tags({"audit","blockchain","couchdb"})
+@Stateful(scopes = Scope.CLUSTER, description = "Stores the block number and last hash/execution time")
 @CapabilityDescription("Converts couchDB event stream(s) into audit blocks. It takes both a size and a duration, whichever is reached first will trigger the creation of a block")
 public class CreateBlockProcessor extends AbstractProcessor {
     public static final String INTERVAL = "interval";
@@ -85,6 +86,7 @@ public class CreateBlockProcessor extends AbstractProcessor {
     private Set<Relationship> relationships;
 
     private PrivateKey pk;
+    private String pkFingerprint;
 
 
 
@@ -128,6 +130,7 @@ public class CreateBlockProcessor extends AbstractProcessor {
                 PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(b1);
                 KeyFactory kf = KeyFactory.getInstance("RSA");
                 this.pk = kf.generatePrivate(spec);
+                this.pkFingerprint = newValue.substring(newValue.length()-5);
             } catch (Exception e) {
                 getLogger().error("Invalid private key");
             }
@@ -155,11 +158,8 @@ public class CreateBlockProcessor extends AbstractProcessor {
         try(OutputStream os = session.write(outgoingFlowFile);
             GZIPOutputStream gzos = new GZIPOutputStream(os);
             PrintWriter writer = new PrintWriter(new OutputStreamWriter(gzos))) {
-            StringBuilder blockContents = new StringBuilder("Hash of previous block : ");
+            StringBuilder blockContents = new StringBuilder("Hash of previous block: ");
             blockContents.append(state.getLastHash()).append("\n");
-            blockContents.append("Signature of previous block : ");
-            blockContents.append(state.getSignature()).append("\n");
-            blockContents.append("Block created at ").append(sdf.format(new Date())).append("\n");
             while (incomingFlowFile != null) {
 
                 long time = incomingFlowFile.getLineageStartDate();
@@ -167,25 +167,27 @@ public class CreateBlockProcessor extends AbstractProcessor {
                 blockContents.append(sdf.format(new Date(time))).append("|");
                 blockContents.append(incomingFlowFile.getAttribute("event.source")).append("|");
                 blockContents.append(incomingFlowFile.getAttribute("doc.id")).append("|");
-                blockContents.append(incomingFlowFile.getAttribute("doc.rev")).append("|");
-                // only the sequence number is guaranteed, when using another full sequence number in the since field,
-                // you will get another ordering... so just track the size of the stream
-                blockContents.append(incomingFlowFile.getAttribute("event.sequence").split("-")[0]).append("\n");
+                blockContents.append(incomingFlowFile.getAttribute("doc.rev")).append("\n");
 
                 session.remove(incomingFlowFile);
                 incomingFlowFile = session.get();
             }
+            long blockDone = System.currentTimeMillis();
+            blockContents.append("Block created at: ").append(""+blockDone).append("|").append(sdf.format(new Date(blockDone))).append("\n");
             String content = blockContents.toString();
             writer.write(content);
 
             // hash of previous block is part of it... this constructs the chain
             state.setLastHash(DigestUtils.sha512Hex(content));
             state.setSignature(CryptoUtils.signValue(this.pk, content));
-            writer.write("hash:");
+            writer.write("sha512: ");
             writer.write(state.getLastHash());
             writer.write("\n");
-            writer.write("signature:");
+            writer.write("SHA512withRSA: ");
             writer.write(state.getSignature());
+            writer.write("\n");
+            writer.write("fingerprint: ");
+            writer.write(this.pkFingerprint);
             writer.write("\n");
             writer.flush();
             writer.close();
