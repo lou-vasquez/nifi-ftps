@@ -74,14 +74,11 @@ public class CertificateVerifier {
                         "The certificate is self-signed.");
             }
 
-// Prepare a set of trusted root CA certificates (from the chain)
-// and a set of intermediate certificates
+// Prepare a set of intermediate certificates
             Set<X509Certificate> trustedRootCerts = new HashSet<>();
             Set<X509Certificate> intermediateCerts = new HashSet<>();
             for (X509Certificate additionalCert : additionalCerts) {
-                if (isSelfSigned(additionalCert)) {
-                    trustedRootCerts.add(additionalCert);
-                } else {
+                if (!isSelfSigned(additionalCert)) {
                     intermediateCerts.add(additionalCert);
                 }
             }

@@ -5,17 +5,14 @@ import org.apache.nifi.logging.ComponentLog;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
-import javax.security.cert.CertificateEncodingException;
-import java.io.File;
-import java.io.FileInputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.security.*;
-import java.security.cert.*;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.cert.CertificateException;
+import java.security.cert.PKIXCertPathBuilderResult;
+import java.security.cert.X509Certificate;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
 
 /**
