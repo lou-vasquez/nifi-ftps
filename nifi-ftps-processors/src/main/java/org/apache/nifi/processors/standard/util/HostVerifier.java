@@ -6,18 +6,21 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
 import javax.security.cert.CertificateEncodingException;
-import javax.security.cert.X509Certificate;
+import java.io.File;
+import java.io.FileInputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.security.*;
+import java.security.cert.*;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.PKIXCertPathBuilderResult;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 
 /**
  * This class handles the verification of the remote side.
+ * @author Jef Verelst
  */
 public class HostVerifier implements HostnameVerifier {
     private final boolean allowSelfSigned;
@@ -30,34 +33,47 @@ public class HostVerifier implements HostnameVerifier {
 
     @Override
     public boolean verify(String serverName, SSLSession sslSession) {
+        String principalName = "unknown";
         try {
 
-            CertificateFactory certFactory = CertificateFactory.getInstance("x.509");
-            for(X509Certificate cert : sslSession.getPeerCertificateChain()) {
-                // convert to java.cert (sslSession uses deprected javax.cert)
-                try(ByteArrayInputStream bis = new ByteArrayInputStream(cert.getEncoded())) {
-                    java.security.cert.X509Certificate convertedCert = (java.security.cert.X509Certificate) certFactory.generateCertificate(bis);
-                    if(CertificateVerifier.isSelfSigned(convertedCert)) {
-                        if(this.allowSelfSigned) {
-                            // make sure the hostname corresponds to the CN
-                            if(!cert.getIssuerDN().getName().contains("CN="+serverName)) {
-                                this.logger.error("Refusing certificate for "+cert.getIssuerDN()+" because the CN does not correspond with the server name "+serverName);
-                                return false;
-                            }
-                        } else {
-                            this.logger.error("Refusing certificate for "+cert.getIssuerDN()+" because self-signed and no permission to trust self-signed certificates.");
-                            return false;
-                        }
-                    } else {
-                        PKIXCertPathBuilderResult verificationResult = CertificateVerifier.verifyCertificate(convertedCert, new HashSet<>());
-                        logger.info("Verified chain "+verificationResult);
+            X509Certificate lastCert = ((X509Certificate[])sslSession.getPeerCertificates())[0];
+            Set<X509Certificate> chain = new HashSet<>();
+            for(X509Certificate cert : (X509Certificate[])sslSession.getPeerCertificates()) {
+                chain.add(cert);
+            }
+
+            principalName = sslSession.getPeerPrincipal().getName();
+
+            InetAddress addr = InetAddress.getByName(serverName);
+            serverName = addr.getHostName(); // handle the case where an IP address comes in... we need to make sure we have the hostname to compare the CN
+
+
+            if(CertificateVerifier.isSelfSigned(lastCert)) {
+                if(this.allowSelfSigned) {
+                    // make sure the hostname corresponds to the CN
+                    if(!sslSession.getPeerPrincipal().getName().contains("CN="+serverName)) {
+                        this.logger.error("Refusing certificate for "+principalName+" because the CN does not correspond with the server name "+serverName);
+                        return false;
                     }
-                } catch (IOException|CertificateVerificationException e) {
-                    logger.error(e.getMessage(),e);
+                } else {
+                    this.logger.error("Refusing certificate for "+principalName+" because self-signed and no permission to trust self-signed certificates.");
+                    return false;
+                }
+            } else {
+                PKIXCertPathBuilderResult verificationResult = CertificateVerifier.verifyCertificate(lastCert, chain);
+                if(logger.isTraceEnabled()) {
+                    logger.trace("Verified chain " + verificationResult);
+                }
+                if(!principalName.contains("CN="+serverName)) {
+                    this.logger.error("Refusing certificate for "+principalName+" because the CN does not correspond with the server name "+serverName);
                     return false;
                 }
             }
-        } catch (SSLPeerUnverifiedException|CertificateException|NoSuchAlgorithmException|CertificateEncodingException|NoSuchProviderException e) {
+
+        } catch(CertificateVerificationException cpbe) {
+            logger.error("Refusing certificate for "+principalName+" because the certificate chain could not be validated.");
+            return false;
+        } catch (UnknownHostException|SSLPeerUnverifiedException|CertificateException|NoSuchAlgorithmException|NoSuchProviderException e) {
             logger.error(e.getMessage(),e);
             return false;
         }

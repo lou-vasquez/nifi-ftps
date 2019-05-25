@@ -19,23 +19,13 @@ package org.apache.nifi.processors.standard.util;
  * under the License.
  */
 
-import java.security.GeneralSecurityException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.PublicKey;
-import java.security.SignatureException;
-import java.security.cert.CertPathBuilder;
-import java.security.cert.CertPathBuilderException;
-import java.security.cert.CertStore;
-import java.security.cert.CertificateException;
-import java.security.cert.CollectionCertStoreParameters;
-import java.security.cert.PKIXBuilderParameters;
-import java.security.cert.PKIXCertPathBuilderResult;
-import java.security.cert.TrustAnchor;
-import java.security.cert.X509CertSelector;
-import java.security.cert.X509Certificate;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.security.*;
+import java.security.cert.*;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -47,8 +37,13 @@ import java.util.Set;
  * certificates.
  *
  * @author Svetlin Nakov
+ * @author Jef Verelst
  */
 public class CertificateVerifier {
+
+    static {
+        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+    }
 
     /**
      * Attempts to build a certification chain for given certificate and to verify
@@ -79,7 +74,7 @@ public class CertificateVerifier {
                         "The certificate is self-signed.");
             }
 
-// Prepare a set of trusted root CA certificates
+// Prepare a set of trusted root CA certificates (from the chain)
 // and a set of intermediate certificates
             Set<X509Certificate> trustedRootCerts = new HashSet<>();
             Set<X509Certificate> intermediateCerts = new HashSet<>();
@@ -90,6 +85,9 @@ public class CertificateVerifier {
                     intermediateCerts.add(additionalCert);
                 }
             }
+
+// now load the JDK trusted root CAs
+            loadJDKTrustedCAs(trustedRootCerts);
 
 // Attempt to build the certification chain and verify it
             PKIXCertPathBuilderResult verifiedCertChain =
@@ -108,6 +106,34 @@ public class CertificateVerifier {
             throw new CertificateVerificationException(
                     "Error verifying the certificate: " +
                             cert.getSubjectX500Principal(), ex);
+        }
+    }
+
+    private static void loadJDKTrustedCAs(Set<X509Certificate> trustedRootCerts) {
+        try {
+            // Load the JDK's cacerts keystore file
+            String filename = System.getProperty("java.home") + "/lib/security/cacerts".replace('/', File.separatorChar);
+            FileInputStream is = new FileInputStream(filename);
+            KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+            String password = "changeit";
+            keystore.load(is, password.toCharArray());
+
+            // This class retrieves the most-trusted CAs from the keystore
+            PKIXParameters params = new PKIXParameters(keystore);
+
+            // Get the set of trust anchors, which contain the most-trusted CA certificates
+            Iterator it = params.getTrustAnchors().iterator();
+            while( it.hasNext() ) {
+                TrustAnchor ta = (TrustAnchor)it.next();
+                // Get certificate
+                X509Certificate cert = ta.getTrustedCert();
+                trustedRootCerts.add(cert);
+            }
+        } catch (CertificateException e) {
+        } catch (KeyStoreException e) {
+        } catch (NoSuchAlgorithmException e) {
+        } catch (InvalidAlgorithmParameterException e) {
+        } catch (IOException e) {
         }
     }
 
