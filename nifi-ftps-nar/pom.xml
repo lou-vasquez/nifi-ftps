@@ -17,19 +17,25 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.apache.nifi</groupId>
-        <artifactId>nifi-nar-bundles</artifactId>
-        <version>1.7.1</version>
+        <groupId>kullervo16</groupId>
+        <artifactId>nifi-ftps-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <groupId>kullervo16</groupId>
-    <artifactId>nifi-ftps-parent</artifactId>
+    <artifactId>nifi-ftps-nar</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <packaging>pom</packaging>
+    <packaging>nar</packaging>
+    <properties>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+        <source.skip>true</source.skip>
+    </properties>
 
-    <modules>
-        <module>nifi-ftps-processors</module>
-        <module>nifi-ftps-nar</module>       
-    </modules>
+    <dependencies>
+        <dependency>
+            <groupId>kullervo16</groupId>
+            <artifactId>nifi-ftps-processors</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
 
 </project>
