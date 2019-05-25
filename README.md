@@ -20,4 +20,5 @@ install them there)
 Tested with FileZilla and with [test.rebex.net](https://test.rebex.net/).
 
 **Note** : it forces the FTPS "PROT P" option (encrypted transfer) over TLS (no more SSL) , but it does not support the "TLS session resumption" option
+
 **Note2** : since I have no proxy to test with, the proxy options are disabled
