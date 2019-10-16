@@ -1,9 +1,9 @@
 # nifi-ftps
-Standalone NAR with FTPS support (while waiting for support in base NIFI)
-Modified for use via CICS/NCEI.
+Standalone NAR with FTPS support (while waiting for support in base NIFI).
+Modified for use via CICS/NCEI:
 - latest nar version
-- host validation off (we verify not them)
-- self signed allowed
+- host validation off (we authenticate not them)
+- self signed (we authenticate not them)
 
 TODO:
 - variable for host validation
@@ -28,17 +28,14 @@ So I decided to inject the additional JAR into the standard processor NAR. This 
 Installation is therefore building the "patched" standard processor NAR and replacing the original one by this one.
 
 ## Current state
-Written with NIFI 1.7.1 (you should be able to get it working on other versions as well by changing the dependencies, changed
-classes will not have changed a lot). 
+Written with NIFI 1.9.2 (thanks for all the commented out solutions, kullervo16). 
 
-To allow self-signed certificates, you must specify the option in the processor. 
-Support for checking trusted certificates implemented against the CA certificates in the JRE keystore (so if you have any self-signed CA certificates,
-install them there)
+- self signed allowed
+- host validation not required
 
-Tested with FileZilla and with [test.rebex.net](https://test.rebex.net/).
+(current version) Manually tested (ListFTPS, FetchFTPS) against external data provider ftps
+(last version) Tested with FileZilla and with [test.rebex.net](https://test.rebex.net/).
 
 **Note** : it forces the FTPS "PROT P" option (encrypted transfer) over TLS (no more SSL) , but it does not support the "TLS session resumption" option
 
 **Note 2** : since I have no proxy to test with, the proxy options are disabled
-
-**Note 3** : there is no exactness check on self-signed certificates, only that you allow self-signed and that the CN matches.
