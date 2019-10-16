@@ -16,6 +16,18 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+<build>
+<plugins>
+<plugin>
+	<groupId>org.apache.maven.plugins</groupId>
+	<artifactId>maven-surefire-plugin</artifactId>
+    <version>2.22.1</version>
+	<configuration>
+<testFailureIgnore>true</testFailureIgnore>
+	</configuration>
+</plugin>
+</plugins>
+</build>
     <parent>
         <groupId>org.apache.nifi</groupId>
         <artifactId>nifi-nar-bundles</artifactId>
@@ -32,4 +44,11 @@
         <module>nifi-ftps-nar</module>       
     </modules>
 
+<dependencies>
+<dependency>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-surefire-plugin</artifactId>
+    <version>2.22.1</version>
+</dependency>
+</dependencies>
 </project>

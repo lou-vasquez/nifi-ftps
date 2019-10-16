@@ -109,6 +109,15 @@ public class FTPSTransfer implements FileTransfer {
             .defaultValue("false")
             .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
             .build();
+    public static final PropertyDescriptor VERIFY_REMOTE = new PropertyDescriptor.Builder()
+            .name("verify_remote")
+            .displayName("Verify remote host")
+            .description("Do we allow certificates whose hostname does not match the provided url?")
+            .required(true)
+            .allowableValues("true", "false")
+            .defaultValue("true")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .build();
 
 
 
@@ -519,9 +528,9 @@ public class FTPSTransfer implements FileTransfer {
         client.setDataTimeout(ctx.getProperty(DATA_TIMEOUT).asTimePeriod(TimeUnit.MILLISECONDS).intValue());
         client.setDefaultTimeout(ctx.getProperty(CONNECTION_TIMEOUT).asTimePeriod(TimeUnit.MILLISECONDS).intValue());
         // make sure the connections are coming from the proper host
-        client.setRemoteVerificationEnabled(true);
+        client.setRemoteVerificationEnabled(false);
         // make sure the SSL cert of the other side is trusted
-        client.setHostnameVerifier(new HostVerifier(ctx.getProperty(ALLOW_SELFSIGNED).asBoolean(),logger));
+        client.setHostnameVerifier(null);
 
         final String remoteHostname = ctx.getProperty(HOSTNAME).evaluateAttributeExpressions(flowFile).getValue();
         this.remoteHostName = remoteHostname;
