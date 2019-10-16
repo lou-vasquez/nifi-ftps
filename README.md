@@ -1,5 +1,13 @@
 # nifi-ftps
 Standalone NAR with FTPS support (while waiting for support in base NIFI)
+Modified for use via CICS/NCEI.
+- latest nar version
+- host validation off (we verify not them)
+- self signed allowed
+
+TODO:
+- variable for host validation
+- variable for self sign
 
 ## Why this extension?
 

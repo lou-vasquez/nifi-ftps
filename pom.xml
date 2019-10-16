@@ -14,41 +14,41 @@
   limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+   <modelVersion>4.0.0</modelVersion>
 
-<build>
-<plugins>
-<plugin>
-	<groupId>org.apache.maven.plugins</groupId>
-	<artifactId>maven-surefire-plugin</artifactId>
-    <version>2.22.1</version>
-	<configuration>
-<testFailureIgnore>true</testFailureIgnore>
-	</configuration>
-</plugin>
-</plugins>
-</build>
-    <parent>
-        <groupId>org.apache.nifi</groupId>
-        <artifactId>nifi-nar-bundles</artifactId>
-        <version>1.7.1</version>
-    </parent>
+   <build>
+      <plugins>
+         <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>2.22.1</version>
+            <configuration>
+               <testFailureIgnore>true</testFailureIgnore>
+            </configuration>
+         </plugin>
+      </plugins>
+   </build>
+   <parent>
+      <groupId>org.apache.nifi</groupId>
+      <artifactId>nifi-nar-bundles</artifactId>
+      <version>1.9.2</version>
+   </parent>
 
-    <groupId>kullervo16</groupId>
-    <artifactId>nifi-ftps-parent</artifactId>
-    <version>1.0-SNAPSHOT</version>
-    <packaging>pom</packaging>
+   <groupId>kullervo16</groupId>
+   <artifactId>nifi-ftps-parent</artifactId>
+   <version>1.1-SNAPSHOT</version>
+   <packaging>pom</packaging>
 
-    <modules>
-        <module>nifi-ftps-processors</module>
-        <module>nifi-ftps-nar</module>       
-    </modules>
+   <modules>
+      <module>nifi-ftps-processors</module>
+      <module>nifi-ftps-nar</module>
+   </modules>
 
-<dependencies>
-<dependency>
-    <groupId>org.apache.maven.plugins</groupId>
-    <artifactId>maven-surefire-plugin</artifactId>
-    <version>2.22.1</version>
-</dependency>
-</dependencies>
+   <dependencies>
+      <dependency>
+         <groupId>org.apache.maven.plugins</groupId>
+         <artifactId>maven-surefire-plugin</artifactId>
+         <version>2.22.1</version>
+      </dependency>
+   </dependencies>
 </project>

@@ -28,6 +28,7 @@ import org.apache.nifi.context.PropertyContext;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processors.standard.util.FTPSTransfer;
 import org.apache.nifi.processors.standard.util.FileTransfer;
+import org.apache.nifi.processor.util.list.ListedEntityTracker;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +64,7 @@ public class ListFTPS extends ListFileTransfer {
         final PropertyDescriptor port = new PropertyDescriptor.Builder().fromPropertyDescriptor(UNDEFAULTED_PORT).defaultValue("21").build();
 
         final List<PropertyDescriptor> properties = new ArrayList<>();
-//        properties.add(LISTING_STRATEGY);
+        properties.add(LISTING_STRATEGY);
         properties.add(HOSTNAME);
         properties.add(port);
         properties.add(USERNAME);
@@ -71,7 +72,7 @@ public class ListFTPS extends ListFileTransfer {
         properties.add(REMOTE_PATH);
         properties.add(DISTRIBUTED_CACHE_SERVICE);
         properties.add(FTPSTransfer.RECURSIVE_SEARCH);
-//        properties.add(FTPSTransfer.FOLLOW_SYMLINK);
+        properties.add(FTPSTransfer.FOLLOW_SYMLINK);
         properties.add(FTPSTransfer.FILE_FILTER_REGEX);
         properties.add(FTPSTransfer.PATH_FILTER_REGEX);
         properties.add(FTPSTransfer.IGNORE_DOTTED_FILES);
@@ -82,14 +83,14 @@ public class ListFTPS extends ListFileTransfer {
         properties.add(FTPSTransfer.TRANSFER_MODE);
         properties.add(FTPSTransfer.BUFFER_SIZE);
         properties.add(TARGET_SYSTEM_TIMESTAMP_PRECISION);
-//        properties.add(ListedEntityTracker.TRACKING_STATE_CACHE);
-//        properties.add(ListedEntityTracker.TRACKING_TIME_WINDOW);
-//        properties.add(ListedEntityTracker.INITIAL_LISTING_TARGET);
+        properties.add(ListedEntityTracker.TRACKING_STATE_CACHE);
+        properties.add(ListedEntityTracker.TRACKING_TIME_WINDOW);
+        properties.add(ListedEntityTracker.INITIAL_LISTING_TARGET);
         properties.add(FTPSTransfer.ALLOW_SELFSIGNED);
         return properties;
     }
 
-    @Override
+    //@Override
     protected Scope getStateScope(ProcessContext processContext) {
         return null;
     }
@@ -104,7 +105,7 @@ public class ListFTPS extends ListFileTransfer {
         return "ftp";
     }
 
-//    @Override
+    @Override
     protected Scope getStateScope(final PropertyContext context) {
         // Use cluster scope so that component can be run on Primary Node Only and can still
         // pick up where it left off, even if the Primary Node changes.
