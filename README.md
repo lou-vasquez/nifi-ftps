@@ -18,6 +18,14 @@ Since I cannot wait on it : I took the FTP part of the base NIFI and added FTPS 
 added some host verification
 
 ## Installation
+
+```
+mvn clean install
+# docker cp nifi-ftps-nar/target/nifi-standard-nar-1.9.2.nar nifi-container:/opt/nifi/nifi-current/lib
+# NOTE be sure to remove existing standard nar (if above copy does not)
+# restart docker/nifi
+```
+
 Since the code only injects an FTPSClient iso an FTPClient, we use all the logic of the FTP classes. This means that there is a very large
 dependency on the standard processors NAR.
 
