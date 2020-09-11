@@ -1,11 +1,13 @@
 # nifi-ftps
 Standalone NAR with FTPS support (while waiting for support in base NIFI).
 Modified for use at NCICS:
+- have not tested latest!
 - latest nar version (1.12.0)
 - host validation off (we authenticate not them)
 - self signed (we authenticate not them)
 
 ## TODO:
+- verify working (post 1.9)
 - variable for host validation
 - variable for self sign
 
