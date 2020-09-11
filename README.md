@@ -51,8 +51,10 @@ Written with NIFI 1.9.2 (thanks for all the commented out solutions, kullervo16)
 - self signed allowed
 - host validation not required
 
-(current version) Manually tested (ListFTPS, FetchFTPS) against external data provider ftps
-(last version) Tested with FileZilla and with [test.rebex.net](https://test.rebex.net/).
+Manually tested (ListFTPS, FetchFTPS) against external data provider ftps
+
+## 1.7 State (pre-fork kullervo16 version)
+Tested with FileZilla and with [test.rebex.net](https://test.rebex.net/).
 
 **Note** : it forces the FTPS "PROT P" option (encrypted transfer) over TLS (no more SSL) , but it does not support the "TLS session resumption" option
 
