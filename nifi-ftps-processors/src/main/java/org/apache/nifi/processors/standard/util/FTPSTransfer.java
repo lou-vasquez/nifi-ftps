@@ -29,14 +29,19 @@ import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.DataUnit;
 import org.apache.nifi.processor.ProcessContext;
+import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.exception.ProcessException;
+import org.apache.nifi.processor.io.OutputStreamCallback;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.proxy.ProxyConfiguration;
 import org.apache.nifi.proxy.ProxySpec;
+import org.apache.nifi.stream.io.StreamUtils;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Proxy;
 import java.net.UnknownHostException;
@@ -288,12 +293,10 @@ public class FTPSTransfer implements FileTransfer {
         return builder.build();
     }
 
-    @Override
     public InputStream getInputStream(String remoteFileName) throws IOException {
         return getInputStream(remoteFileName, null);
     }
 
-    @Override
     public InputStream getInputStream(final String remoteFileName, final FlowFile flowFile) throws IOException {
         final FTPClient client = getClient(flowFile);
         InputStream in = client.retrieveFileStream(remoteFileName);
@@ -303,15 +306,49 @@ public class FTPSTransfer implements FileTransfer {
         return in;
     }
 
-    @Override
     public void flush() throws IOException {
         final FTPClient client = getClient(null);
         client.completePendingCommand();
     }
 
-    @Override
     public boolean flush(final FlowFile flowFile) throws IOException {
         return getClient(flowFile).completePendingCommand();
+    }
+
+    @Override
+    public FlowFile getRemoteFile(final String remoteFileName, final FlowFile origFlowFile, final ProcessSession session) throws ProcessException, IOException {
+        final FTPClient client = getClient(origFlowFile);
+        InputStream in = null;
+        FlowFile resultFlowFile = null;
+        try {
+            in = client.retrieveFileStream(remoteFileName);
+            if (in == null) {
+                final String response = client.getReplyString();
+                // FTPClient doesn't throw exception if file not found.
+                // Instead, response string will contain: "550 Can't open <absolute_path>: No such file or directory"
+                if (response != null && response.trim().endsWith("No such file or directory")) {
+                    throw new FileNotFoundException(response);
+                }
+                throw new IOException(response);
+            }
+            final InputStream remoteIn = in;
+            resultFlowFile = session.write(origFlowFile, new OutputStreamCallback() {
+                @Override
+                public void process(final OutputStream out) throws IOException {
+                    StreamUtils.copy(remoteIn, out);
+                }
+            });
+            client.completePendingCommand();
+            return resultFlowFile;
+        } finally {
+            if(in != null){
+                try{
+                    in.close();
+                }catch(final IOException ioe){
+                    //do nothing
+                }
+            }
+        }
     }
 
     @Override

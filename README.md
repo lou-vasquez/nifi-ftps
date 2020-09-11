@@ -1,13 +1,18 @@
 # nifi-ftps
 Standalone NAR with FTPS support (while waiting for support in base NIFI).
-Modified for use via CICS/NCEI:
-- latest nar version
+Modified for use at NCICS:
+- latest nar version (1.12.0)
 - host validation off (we authenticate not them)
 - self signed (we authenticate not them)
 
 TODO:
 - variable for host validation
 - variable for self sign
+
+## History
+Forked from https://github.com/kullervo16/nifi-ftps
+Updated to 1.9.2
+Updated to 1.12.0
 
 ## Why this extension?
 
@@ -35,7 +40,11 @@ So I decided to inject the additional JAR into the standard processor NAR. This 
 
 Installation is therefore building the "patched" standard processor NAR and replacing the original one by this one.
 
-## Current state
+## 1.12.0 State
+Testing Underway
+(minor mods)
+
+## 1.9.2 State (past tag)
 Written with NIFI 1.9.2 (thanks for all the commented out solutions, kullervo16). 
 
 - self signed allowed
