@@ -5,14 +5,15 @@ Modified for use at NCICS:
 - host validation off (we authenticate not them)
 - self signed (we authenticate not them)
 
-TODO:
+## TODO:
 - variable for host validation
 - variable for self sign
 
 ## History
-Forked from https://github.com/kullervo16/nifi-ftps
-Updated to 1.9.2
-Updated to 1.12.0
+
+- Forked from https://github.com/kullervo16/nifi-ftps
+- Updated to 1.9.2
+- Updated to 1.12.0
 
 ## Why this extension?
 
