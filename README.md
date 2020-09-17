@@ -1,13 +1,12 @@
 # nifi-ftps
 Standalone NAR with FTPS support (while waiting for support in base NIFI).
 Modified for use at NCICS:
-- have not tested latest!
+- basic FTPS functionality test works for List/Fetch/Get/Put
 - latest nar version (1.12.0)
 - host validation off (we authenticate not them)
 - self signed (we authenticate not them)
 
 ## TODO:
-- verify working (post 1.9)
 - variable for host validation
 - variable for self sign
 
@@ -29,7 +28,7 @@ added some host verification
 
 ```
 mvn clean install
-# docker cp nifi-ftps-nar/target/nifi-standard-nar-1.9.2.nar nifi-container:/opt/nifi/nifi-current/lib
+# docker cp nifi-ftps-nar/target/nifi-standard-nar-VERSION.nar nifi-container:/opt/nifi/nifi-current/lib
 # NOTE be sure to remove existing standard nar (if above copy does not)
 # restart docker/nifi
 ```
@@ -44,8 +43,9 @@ So I decided to inject the additional JAR into the standard processor NAR. This 
 Installation is therefore building the "patched" standard processor NAR and replacing the original one by this one.
 
 ## 1.12.0 State
-Testing Underway
+basic testing to VsFTP works for List/Fetch/Get/Put
 (minor mods)
+docker run -p 2121:21 -p21100-21110:21100-21110 --name ftps loicmathieu/vsftpd ftps
 
 ## 1.9.2 State (past tag)
 Written with NIFI 1.9.2 (thanks for all the commented out solutions, kullervo16). 
