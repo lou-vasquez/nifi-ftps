@@ -1,10 +1,12 @@
 # nifi-ftps
 Standalone NAR with FTPS support (while waiting for support in base NIFI).
 Modified for use at NCICS:
-- basic FTPS functionality test works for List/Fetch/Get/Put
-- latest nar version (1.12.0)
+- basic FTPS functionality tested working for List/Fetch/Get/Put
+- latest nar version (as of sept 2020 - 1.12.0)
 - host validation off (we authenticate not them)
 - self signed (we authenticate not them)
+- nat workaround option
+- EPSV with IPv4 option
 
 ## TODO:
 - variable for host validation
