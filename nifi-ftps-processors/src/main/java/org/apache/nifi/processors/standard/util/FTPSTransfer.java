@@ -37,6 +37,9 @@ import org.apache.nifi.proxy.ProxyConfiguration;
 import org.apache.nifi.proxy.ProxySpec;
 import org.apache.nifi.stream.io.StreamUtils;
 
+import org.apache.commons.net.PrintCommandListener;
+import java.io.PrintWriter;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -114,6 +117,33 @@ public class FTPSTransfer implements FileTransfer {
             .defaultValue("false")
             .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
             .build();
+    public static final PropertyDescriptor DEBUG_LOGGING = new PropertyDescriptor.Builder()
+            .name("debug_logging")
+            .displayName("debug client to stdout")
+            .description("Do we enable client debugging to stdout(for now)?")
+            .required(true)
+            .allowableValues("true", "false")
+            .defaultValue("false")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .build();
+    public static final PropertyDescriptor PASSIVE_NAT_WORKAROUND = new PropertyDescriptor.Builder()
+            .name("passive_nat_workaround")
+            .displayName("Passive NAT Workaround")
+            .description("Enable workaround for passive mode NAT. Site-local PASV mode reply address will be replaced with the remote host address")
+            .required(true)
+            .allowableValues("true", "false")
+            .defaultValue("false")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .build();
+    public static final PropertyDescriptor EPSV_WITH_IPV4 = new PropertyDescriptor.Builder()
+            .name("epsv_with_ipv4")
+            .displayName("EPSV with IPv4")
+            .description("Use EPSV with IPv4. Try where PASV mode fails on data connection")
+            .required(true)
+            .allowableValues("true", "false")
+            .defaultValue("false")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .build();
     public static final PropertyDescriptor VERIFY_REMOTE = new PropertyDescriptor.Builder()
             .name("verify_remote")
             .displayName("Verify remote host")
@@ -180,6 +210,7 @@ public class FTPSTransfer implements FileTransfer {
         if (maxResults < 1) {
             return listing;
         }
+        logger.debug("starting listing "+path);
 
         if (depth >= 100) {
             logger.warn(this + " had to stop recursively searching directories at a recursive depth of " + depth + " to avoid memory issues");
@@ -215,9 +246,12 @@ public class FTPSTransfer implements FileTransfer {
 
         if (path == null || path.trim().isEmpty()) {
             files = client.listFiles(".");
+            logger.debug("listed . "+files);
         } else {
             files = client.listFiles(path);
+            logger.debug("listed path "+path+": "+files);
         }
+        logger.debug("Listed {}", new Object[] {files});
         if (files.length == 0 && path != null && !path.trim().isEmpty()) {
             // throw exception if directory doesn't exist
             final boolean cdSuccessful = setWorkingDirectory(path);
@@ -545,6 +579,8 @@ public class FTPSTransfer implements FileTransfer {
     }
 
     private FTPClient getClient(final FlowFile flowFile) throws IOException {
+        logger.debug("inside getclient");
+
         if (client != null) {
             String desthost = ctx.getProperty(HOSTNAME).evaluateAttributeExpressions(flowFile).getValue();
             if (remoteHostName.equals(desthost)) {
@@ -561,6 +597,12 @@ public class FTPSTransfer implements FileTransfer {
 
         // we use the default : implicit false and negotiated TLS version (no SSL anymore)
         this.client = new FTPSClient();
+        if (ctx.getProperty(DEBUG_LOGGING).asBoolean())
+          client.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(System.out), true));
+        if (ctx.getProperty(PASSIVE_NAT_WORKAROUND).asBoolean())
+          client.setPassiveNatWorkaroundStrategy(new FTPClient.NatServerResolverImpl(client));
+        if (ctx.getProperty(EPSV_WITH_IPV4).asBoolean())
+          client.setUseEPSVwithIPv4(true);
         client.setBufferSize(ctx.getProperty(BUFFER_SIZE).asDataSize(DataUnit.B).intValue());
         client.setDataTimeout(ctx.getProperty(DATA_TIMEOUT).asTimePeriod(TimeUnit.MILLISECONDS).intValue());
         client.setDefaultTimeout(ctx.getProperty(CONNECTION_TIMEOUT).asTimePeriod(TimeUnit.MILLISECONDS).intValue());
@@ -615,6 +657,7 @@ public class FTPSTransfer implements FileTransfer {
         }
 
         this.homeDirectory = client.printWorkingDirectory();
+        logger.debug("initial path: "+this.homeDirectory);
 
         return client;
     }

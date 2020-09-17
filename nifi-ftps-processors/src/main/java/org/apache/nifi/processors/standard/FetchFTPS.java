@@ -65,8 +65,11 @@ public class FetchFTPS extends FetchFileTransfer {
         properties.add(FTPSTransfer.CONNECTION_MODE);
         properties.add(FTPSTransfer.TRANSFER_MODE);
         properties.add(FTPSTransfer.BUFFER_SIZE);
-        //properties.add(FILE_NOT_FOUND_LOG_LEVEL);
+        properties.add(FILE_NOT_FOUND_LOG_LEVEL);
         properties.add(FTPSTransfer.ALLOW_SELFSIGNED);
+        properties.add(FTPSTransfer.PASSIVE_NAT_WORKAROUND);
+        properties.add(FTPSTransfer.EPSV_WITH_IPV4);
+        properties.add(FTPSTransfer.DEBUG_LOGGING);
         return properties;
     }
 
